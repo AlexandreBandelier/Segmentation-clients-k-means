@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualiseur de Segmentation K-Means Profond - KGI</title>
+    <!-- Tailwind CSS pour un design moderne et responsive -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js pour des graphiques fluides et animés -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons pour des icônes modernes -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- PapaParse pour lire les fichiers CSV directement -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Papa-parse/5.3.2/papaparse.min.js"></script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans">
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-950/50 backdrop-blur-md sticky top-0 z-50 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-red-600 p-2.5 rounded-xl shadow-lg shadow-red-900/30">
+                    <i data-lucide="shield" class="w-6 h-6 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">KGI Client Intelligence</h1>
+                    <p class="text-xs text-slate-400">Analyse Comportementale et Cartographie des Pratiquants</p>
+                </div>
+            </div>
+            
+            <!-- Sélecteur d'Onglets Principal -->
+            <div class="flex bg-slate-900 p-1 rounded-xl border border-slate-800">
+                <button id="tabSimuBtn" onclick="changerOnglet('simulation')" class="px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 bg-red-600 text-white shadow-lg shadow-red-950/30">
+                    🔮 Modèle Conceptuel
+                </button>
+                <button id="tabReelBtn" onclick="changerOnglet('reel')" class="px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 text-slate-400 hover:text-white">
+                    📊 Explorateur Réel (CSV)
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+
+        <!-- SECTION 1 : PANNEAU DE CONNEXION DES DONNÉES RÉELLES -->
+        <section id="importDataSection" class="hidden bg-slate-950 border border-dashed border-slate-700 p-6 rounded-2xl space-y-4">
+            <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                <div class="space-y-1">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <i data-lucide="database" class="w-5 h-5 text-red-500"></i>
+                        Connecter tes données de segmentation réelles
+                    </h3>
+                    <p class="text-xs text-slate-400">Importe ton fichier "donnees_segmentation_profonde.csv" pour charger tes données.</p>
+                </div>
+                <div class="flex flex-wrap gap-2 w-full lg:w-auto">
+                    <!-- File Upload -->
+                    <label class="flex-1 lg:flex-none bg-slate-900 hover:bg-slate-850 border border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-200 cursor-pointer flex items-center justify-center gap-2 transition">
+                        <i data-lucide="file-up" class="w-4 h-4 text-red-500"></i>
+                        Choisir le fichier CSV...
+                        <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="chargerFichierLocal(event)">
+                    </label>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3 bg-slate-900/50 p-3 rounded-xl border border-slate-800/80">
+                <span class="text-xs text-slate-500 font-mono">Alternative URL :</span>
+                <input type="text" id="csvUrlInput" 
+                       placeholder="Coller l'URL Raw du CSV GitHub ici..." 
+                       class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-red-500 flex-1">
+                <button onclick="chargerDonneesDepuisUrl()" class="bg-red-600 hover:bg-red-500 text-white text-xs px-4 py-1.5 rounded-lg font-semibold transition whitespace-nowrap">
+                    Connecter
+                </button>
+            </div>
+        </section>
+
+        <!-- Statut de synchronisation -->
+        <div id="syncBadge" class="bg-slate-950 border border-slate-800 p-4 rounded-xl flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full bg-blue-500 animate-pulse" id="syncDot"></div>
+                <span class="text-xs font-semibold text-slate-300" id="syncText">Affichage du Modèle Conceptuel (Données de simulation illustratives)</span>
+            </div>
+            <p class="text-[11px] text-slate-400" id="syncSubtext">
+                Bascule sur l'onglet "Explorateur Réel" ci-dessus pour charger tes propres données d'analyse.
+            </p>
+        </div>
+
+        <!-- Zone de KPIs d'ensemble -->
+        <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- CA Total -->
+            <div class="bg-slate-950 border border-slate-800 p-5 rounded-2xl relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-red-600/5 rounded-full blur-2xl"></div>
+                <p class="text-xs text-slate-400 font-medium">Chiffre d'Affaires Cumulé</p>
+                <p class="text-xl md:text-2xl font-extrabold text-white mt-1" id="kpiCA">146 322.45 €</p>
+                <p class="text-[10px] text-slate-500 mt-2 flex items-center gap-1">
+                    <i data-lucide="trending-up" class="w-3 h-3 text-emerald-400"></i>
+                    Cumulé sur la base
+                </p>
+            </div>
+            <!-- Total Clients -->
+            <div class="bg-slate-950 border border-slate-800 p-5 rounded-2xl relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-blue-600/5 rounded-full blur-2xl"></div>
+                <p class="text-xs text-slate-400 font-medium">Clients Segmentés</p>
+                <p class="text-xl md:text-2xl font-extrabold text-white mt-1" id="kpiClients">22 068</p>
+                <p class="text-[10px] text-slate-500 mt-2 flex items-center gap-1">
+                    <i data-lucide="users" class="w-3 h-3 text-blue-400"></i>
+                    Fiches pratiquants uniques
+                </p>
+            </div>
+            <!-- Panier Moyen -->
+            <div class="bg-slate-950 border border-slate-800 p-5 rounded-2xl relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-yellow-600/5 rounded-full blur-2xl"></div>
+                <p class="text-xs text-slate-400 font-medium">Panier Moyen Client (AOV)</p>
+                <p class="text-xl md:text-2xl font-extrabold text-white mt-1" id="kpiAOV">118.42 €</p>
+                <p class="text-[10px] text-slate-500 mt-2 flex items-center gap-1">
+                    <i data-lucide="shopping-cart" class="w-3 h-3 text-yellow-400"></i>
+                    Dépense moyenne historique
+                </p>
+            </div>
+            <!-- Inactivité Moyenne -->
+            <div class="bg-slate-950 border border-slate-800 p-5 rounded-2xl relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-purple-600/5 rounded-full blur-2xl"></div>
+                <p class="text-xs text-slate-400 font-medium">Récence Moyenne</p>
+                <p class="text-xl md:text-2xl font-extrabold text-white mt-1" id="kpiRecence">1 062 jours</p>
+                <p class="text-[10px] text-slate-500 mt-2 flex items-center gap-1">
+                    <i data-lucide="clock" class="w-3 h-3 text-purple-400"></i>
+                    Inactivité moyenne globale
+                </p>
+            </div>
+        </section>
+
+        <!-- Sélecteur de Segment (Menu Déroulant) -->
+        <section class="bg-slate-950 border border-slate-800 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-3">
+            <span class="text-sm font-bold text-slate-200">Sélectionner un segment pour analyser son profil :</span>
+            <select id="clusterDropdown" onchange="changerClusterDepuisDropdown(this.value)" class="bg-slate-900 border border-slate-750 text-slate-200 text-xs px-4 py-2.5 rounded-xl focus:outline-none focus:border-red-500 cursor-pointer font-bold w-full sm:w-auto">
+                <!-- Rempli dynamiquement -->
+            </select>
+        </section>
+
+        <!-- Grille de graphiques interactifs -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Graphique en anneau (Répartition) -->
+            <div class="bg-slate-950 border border-slate-800 rounded-2xl p-6 lg:col-span-1 flex flex-col justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i data-lucide="pie-chart" class="w-4 h-4 text-red-500"></i>
+                        Répartition de la Base de Données
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-1">Cliquez sur une tranche pour isoler un segment</p>
+                </div>
+                <div class="relative w-full max-w-[200px] mx-auto my-4 aspect-square">
+                    <canvas id="clusterDonutChart"></canvas>
+                </div>
+                <div class="text-center">
+                    <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold block">Sélecteur dynamique circulaire</span>
+                </div>
+            </div>
+
+            <!-- Graphique à barres (Affinités Disciplines) -->
+            <div class="bg-slate-950 border border-slate-800 rounded-2xl p-6 lg:col-span-2 flex flex-col justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i data-lucide="bar-chart-3" class="w-4 h-4 text-blue-500"></i>
+                        Caractéristiques d'Achat du Segment (%)
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-1">Comparatif de l'affinité pour les univers Kumite, Kata, Débutant et Enfant</p>
+                </div>
+                <div class="h-[240px] w-full mt-4">
+                    <canvas id="clusterBarChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Fiche Stratégie Comportementale -->
+        <section id="strategyCard" class="bg-slate-950 border border-slate-800 rounded-2xl p-6 transition-all duration-300">
+            <!-- Rempli dynamiquement -->
+        </section>
+
+        <!-- Liste des clients du segment -->
+        <section class="bg-slate-950 border border-slate-800 rounded-2xl p-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                <div>
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i data-lucide="list" class="w-4 h-4 text-emerald-500"></i>
+                        Membres du Segment Sélectionné
+                    </h3>
+                    <p class="text-xs text-slate-400" id="tableDescription">Aperçu représentatif des profils clients de ce groupe.</p>
+                </div>
+                <button onclick="genererCsv()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-4 py-2.5 rounded-xl font-bold flex items-center gap-1.5 transition shadow-lg shadow-emerald-950/50">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                    Exporter les membres du segment (.csv)
+                </button>
+            </div>
+
+            <div class="overflow-x-auto border border-slate-800/80 rounded-xl custom-scrollbar">
+                <table class="w-full text-left border-collapse text-sm text-slate-300 min-w-[600px]">
+                    <thead class="bg-slate-900/50 text-slate-400 text-xs font-semibold uppercase border-b border-slate-800">
+                        <tr>
+                            <th class="p-4">Identifiant Client</th>
+                            <th class="p-4 text-right">Récence (Jours)</th>
+                            <th class="p-4 text-right">Fréquence (Commandes)</th>
+                            <th class="p-4 text-right font-medium text-emerald-400">Total Dépensé</th>
+                            <th class="p-4">Discipline Dominante</th>
+                            <th class="p-4">Profil d'Âge</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clientTableBody" class="divide-y divide-slate-800/50">
+                        <!-- Rempli dynamiquement -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 bg-slate-950 py-6 mt-12 text-center text-xs text-slate-500">
+        <p>© 2026 KGI Client Intelligence - Tous droits réservés. Projet de Recherche et de Segmentation Pratiquants.</p>
+    </footer>
+
+    <!-- Logique JavaScript Interactive & Import CSV Réel -->
+    <script>
+        // --- 1. MODÈLES MARKETING DE RÉFÉRENCE (PSYCHOLOGIE ET ANALYSE COMPORTEMENTALE) ---
+        const modelesMarketing = {
+            0: {
+                nom: "Le Pratiquant Occasionnel Éloigné",
+                marque: "KGI Pratique Ponctuelle",
+                couleur: "#64748b", // ardoise
+                badgeColor: "bg-slate-500/10 text-slate-400 border border-slate-500/20",
+                bgLight: "rgba(100, 116, 139, 0.04)",
+                caracteristiques: [
+                    "Achat de commodité unique ou très irrégulier (kimono d'entraînement d'entrée de gamme).",
+                    "Faible engagement psychologique dans la discipline sportive globale.",
+                    "Profil typique d'une personne ayant testé l'activité sur une courte période avant de s'en détacher.",
+                    "Absence totale d'intérêt pour les gammes d'équipements avancées ou de spécialisation technique."
+                ],
+                pensee: "Recherche un équipement d'accès simple et peu coûteux pour répondre à un besoin immédiat et ponctuel. Aucune volonté de renouvellement ou d'investissement technique."
+            },
+            1: {
+                nom: "Le Profil Famille & Pratique Associative",
+                marque: "KGI Club & Famille",
+                couleur: "#3b82f6", // bleu
+                badgeColor: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
+                bgLight: "rgba(59, 130, 246, 0.04)",
+                caracteristiques: [
+                    "Logique d'achat regroupée (parents qui achètent pour leurs enfants et parfois pour eux-mêmes).",
+                    "Forte sensibilité aux tailles évolutives de kimonos et d'équipements de protection de base.",
+                    "Achats synchronisés avec les cycles scolaires et la rentrée de septembre.",
+                    "Comportement d'achat équilibré mais pragmatique : ils cherchent le meilleur rapport qualité/prix/durabilité."
+                ],
+                pensee: "Veut équiper les enfants pour l'activité du club avec des produits conformes, solides et sécurisants. Préfère l'achat groupé de rentrée pour simplifier la logistique familiale."
+            },
+            2: {
+                nom: "L'Enseignant, le Club & le Pratiquant Élite",
+                marque: "KGI Pro & Dojos d'Élite",
+                couleur: "#f59e0b", // ambre
+                badgeColor: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+                bgLight: "rgba(245, 158, 11, 0.04)",
+                caracteristiques: [
+                    "Niveau d'exigence maximal concernant la qualité, l'épaisseur du tissu et le respect des normes officielles.",
+                    "Fidélité absolue aux marques de confiance (Hayashi, Tokaido, Adidas WKF).",
+                    "Acheteurs à forte valeur récurrente : ils commandent pour eux-mêmes ou pour équiper l'ensemble de leur dojo.",
+                    "Perception du matériel de karaté comme un outil professionnel ou de haute performance, non comme une dépense."
+                ],
+                pensee: "Recherche l'excellence technique (kimonos claquants de Kata, coupes japonaises) et la conformité stricte pour les compétitions. Valorise le conseil expert et la durabilité extrême."
+            },
+            3: {
+                nom: "L'Initié en Phase de Découverte",
+                marque: "KGI Initiation",
+                couleur: "#8b5cf6", // violet
+                badgeColor: "bg-purple-500/10 text-purple-400 border border-purple-500/20",
+                bgLight: "rgba(139, 92, 246, 0.04)",
+                caracteristiques: [
+                    "Acheteurs centrés sur les accessoires de passage de grade (ceintures blanches, jaunes) et les packs d'initiation.",
+                    "Hésitation comportementale : l'engagement à long terme dans l'art martial n'est pas encore totalement validé.",
+                    "Panier d'achat réduit au strict minimum demandé par le professeur du club pour monter sur le tatami.",
+                    "Ce segment s'endort rapidement si la transition vers la deuxième année de pratique ne s'effectue pas."
+                ],
+                pensee: "Recherche un équipement d'intégration conforme pour débuter sereinement, sans engagement financier trop lourd au départ. Mode 'découverte' actif."
+            },
+            4: {
+                nom: "L'Acheteur d'Impulsion & Goodies",
+                marque: "KGI Accessoires",
+                couleur: "#ef4444", // rouge
+                badgeColor: "bg-red-500/10 text-red-400 border border-red-500/20",
+                bgLight: "rgba(239, 68, 68, 0.04)",
+                caracteristiques: [
+                    "Achats de très faible valeur unitaire (protège-dents d'urgence, porte-clés, écussons, gourdes de club).",
+                    "Absence d'attachement à la marque ou aux équipements structurants du karaté (kimonos, protections lourdes).",
+                    "Comportement d'achat ponctuel, souvent guidé par un besoin de remplacement d'accessoire perdu ou d'achat d'impulsion.",
+                    "Récence très dégradée : ils ne reviennent presque jamais pour des achats majeurs."
+                ],
+                pensee: "Recherche un petit accessoire spécifique ou un objet cadeau à un instant T. Pas de logique de renouvellement de matériel de pratique."
+            },
+            5: {
+                nom: "Le Compétiteur Déterminé & Passionné Kumite",
+                marque: "KGI Fighter Club",
+                couleur: "#10b981", // émeraude
+                badgeColor: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+                bgLight: "rgba(16, 185, 129, 0.04)",
+                caracteristiques: [
+                    "Forte spécialisation dans l'univers du combat (Kumite) : gants rouges/bleus, protège-pieds, plastrons homologués.",
+                    "Usure rapide du matériel en raison de l'intensité des entraînements de combat hebdomadaires.",
+                    "Forte sensibilité au confort, à la légèreté des protections et au respect des réglementations de la Fédération (WKF).",
+                    "Achat récurrent guidé par le calendrier des compétitions officielles de la saison."
+                ],
+                pensee: "Priorise la sécurité physique, la conformité réglementaire de combat et l'ergonomie de l'équipement pour optimiser sa vitesse et ses performances sur le tatami."
+            }
+        };
+
+        // --- 2. DONNÉES THÉORIQUES (SIMULATION) ---
+        const simulationClusters = [
+            { id: 0, clients: 7013, montant: 138.09, frequence: 1.3, recence: 1409, kumite: 7.0, kata: 1.9, debutant: 0.1, enfant: 0.1 },
+            { id: 1, clients: 2032, montant: 123.40, frequence: 1.1, recence: 591, kumite: 24.6, kata: 18.8, debutant: 0.4, enfant: 9.1 },
+            { id: 2, clients: 643, montant: 1014.91, frequence: 7.2, recence: 462.9, kumite: 26.4, kata: 6.1, debutant: 2.2, enfant: 2.6 },
+            { id: 3, clients: 829, montant: 110.04, frequence: 1.5, recence: 737.8, kumite: 5.1, kata: 1.6, debutant: 21.2, enfant: 1.6 },
+            { id: 4, clients: 9487, montant: 9.54, frequence: 0.3, recence: 1019.2, kumite: 1.0, kata: 0.4, debutant: 0.3, enfant: 0.1 },
+            { id: 5, clients: 2095, montant: 396.67, frequence: 3.2, recence: 735.8, kumite: 19.7, kata: 5.7, debutant: 0.9, enfant: 0.7 }
+        ];
+
+        // --- 3. VARIABLES D'ÉTAT ---
+        let currentMode = 'simulation'; // 'simulation' ou 'reel'
+        let currentClustersData = [...simulationClusters];
+        let realParsedClients = []; // Contiendra les vrais clients extraits du CSV
+        let selectedClusterId = 2; // Cluster Élite sélectionné par défaut
+        let donutChart, barChart;
+
+        // --- 4. NAVIGATION ONGLETS ---
+        function changerOnglet(mode) {
+            currentMode = mode;
+            
+            const simuBtn = document.getElementById('tabSimuBtn');
+            const reelBtn = document.getElementById('tabReelBtn');
+            const importSection = document.getElementById('importDataSection');
+            const tableDesc = document.getElementById('tableDescription');
+            
+            if (mode === 'simulation') {
+                simuBtn.className = "px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 bg-red-600 text-white shadow-lg shadow-red-950/30";
+                reelBtn.className = "px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 text-slate-400 hover:text-white";
+                importSection.classList.add('hidden');
+                tableDesc.textContent = "Aperçu représentatif des profils clients de ce groupe (Simulation).";
+                
+                // Charger données de simulation
+                currentClustersData = [...simulationClusters];
+                remplirKpisGlobaux(146322.45, 22068, 118.42, 1062);
+                document.getElementById('syncText').textContent = "Affichage du Modèle Conceptuel (Données de simulation illustratives)";
+                document.getElementById('syncSubtext').textContent = "Bascule sur l'onglet 'Explorateur Réel' ci-dessus pour charger tes propres données d'analyse.";
+                document.getElementById('syncDot').className = "w-3 h-3 rounded-full bg-blue-500 animate-pulse";
+                
+                mettreAJourGraphiques();
+                selectionnerCluster(selectedClusterId);
+            } else {
+                reelBtn.className = "px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 bg-red-600 text-white shadow-lg shadow-red-950/30";
+                simuBtn.className = "px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 text-slate-400 hover:text-white";
+                importSection.classList.remove('hidden');
+                tableDesc.textContent = "Liste complète et réelle des clients du segment (Extraite du fichier connecté).";
+                
+                if (realParsedClients.length === 0) {
+                    // Indiquer qu'aucun fichier n'est connecté
+                    document.getElementById('syncText').textContent = "En attente du fichier CSV réel...";
+                    document.getElementById('syncSubtext').textContent = "Glisse ton fichier CSV 'donnees_segmentation_profonde.csv' pour synchroniser l'affichage réel.";
+                    document.getElementById('syncDot').className = "w-3 h-3 rounded-full bg-yellow-500 animate-pulse";
+                    
+                    // Vider les Kpis par défaut
+                    remplirKpisGlobaux(0, 0, 0, 0);
+                    currentClustersData = simulationClusters.map(c => ({...c, clients: 0, montant: 0, frequence: 0, recence: 0, kumite: 0, kata: 0, debutant: 0, enfant: 0}));
+                }
+                
+                mettreAJourGraphiques();
+                selectionnerCluster(selectedClusterId);
+            }
+        }
+
+        // --- 5. INITIALISATION DES GRAPHIQUES ---
+        function initialiserGraphiques() {
+            const ctxDonut = document.getElementById('clusterDonutChart').getContext('2d');
+            donutChart = new Chart(ctxDonut, {
+                type: 'doughnut',
+                data: {
+                    labels: currentClustersData.map(c => modelesMarketing[c.id].nom),
+                    datasets: [{
+                        data: currentClustersData.map(c => c.clients),
+                        backgroundColor: currentClustersData.map(c => modelesMarketing[c.id].couleur),
+                        borderWidth: 2,
+                        borderColor: '#0f172a',
+                        hoverOffset: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => ` ${context.label} : ${context.raw} pratiquants`
+                            }
+                        }
+                    },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            selectionnerCluster(currentClustersData[index].id);
+                        }
+                    }
+                }
+            });
+
+            const ctxBar = document.getElementById('clusterBarChart').getContext('2d');
+            barChart = new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: ['Combat (Kumite)', 'Technique (Kata)', 'Initiation (Débutant)', 'Profil Enfant'],
+                    datasets: [{
+                        data: [0, 0, 0, 0],
+                        backgroundColor: ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b'],
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { weight: 'bold' } } },
+                        y: { 
+                            grid: { color: 'rgba(51, 65, 85, 0.15)' }, 
+                            ticks: { color: '#94a3b8', callback: val => val + "%" },
+                            min: 0,
+                            max: 100
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        // --- 6. RAFRAÎCHISSEMENT DES GRAPHIQUES ET DU DROPDOWN ---
+        function mettreAJourGraphiques() {
+            if (!donutChart || !barChart) return;
+            
+            donutChart.data.datasets[0].data = currentClustersData.map(c => c.clients);
+            donutChart.data.labels = currentClustersData.map(c => modelesMarketing[c.id].nom);
+            donutChart.update();
+
+            const select = document.getElementById('clusterDropdown');
+            select.innerHTML = '';
+            currentClustersData.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = `Cluster #${c.id} - ${modelesMarketing[c.id].nom} (${c.clients} clients)`;
+                if (c.id === selectedClusterId) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+
+        // --- 7. SÉLECTION D'UN CLUSTER ET CONSTITUTION DE LA FICHE DESCRIPTIVE ---
+        function selectionnerCluster(id) {
+            selectedClusterId = parseInt(id);
+            const c = currentClustersData.find(item => item.id === selectedClusterId);
+            const meta = modelesMarketing[selectedClusterId];
+            
+            if (!c) return;
+
+            document.getElementById('clusterDropdown').value = selectedClusterId;
+
+            const strategyCard = document.getElementById('strategyCard');
+            strategyCard.style.backgroundColor = meta.bgLight;
+            strategyCard.style.borderColor = meta.couleur;
+            
+            // Construction de la liste des caractéristiques
+            let listeCaracsHtml = "";
+            meta.caracteristiques.forEach(carac => {
+                listeCaracsHtml += `
+                    <li class="flex items-start gap-2.5 text-slate-300 text-sm">
+                        <span class="w-1.5 h-1.5 rounded-full bg-red-500 mt-2 shrink-0"></span>
+                        <span>${carac}</span>
+                    </li>
+                `;
+            });
+
+            strategyCard.innerHTML = `
+                <div class="flex flex-col lg:flex-row justify-between items-stretch gap-6">
+                    <div class="space-y-4 flex-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] uppercase font-black tracking-widest text-slate-500">Fiche Pratiquant de Référence</span>
+                            <span class="px-2.5 py-0.5 text-[10px] font-bold rounded-full ${meta.badgeColor}">
+                                Cluster #${c.id} - ${meta.nom}
+                            </span>
+                        </div>
+                        <h2 class="text-xl font-extrabold text-white">Pratique Dominante : <span class="text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400 font-black">${meta.marque}</span></h2>
+                        
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 py-3 border-y border-slate-800/80">
+                            <div>
+                                <p class="text-[10px] uppercase text-slate-500 font-semibold">Volume Segmenté</p>
+                                <p class="text-base font-extrabold text-white mt-0.5">${c.clients} clients</p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] uppercase text-slate-500 font-semibold">Panier d'Achat Moyen</p>
+                                <p class="text-base font-extrabold text-emerald-400 mt-0.5">${c.montant.toFixed(2)} €</p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] uppercase text-slate-500 font-semibold">Fréquence Moyenne</p>
+                                <p class="text-base font-extrabold text-white mt-0.5">${c.frequence.toFixed(1)} commandes</p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] uppercase text-slate-500 font-semibold">Inactivité Moyenne</p>
+                                <p class="text-base font-extrabold text-purple-400 mt-0.5">${Math.round(c.recence)} jours</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <h4 class="text-xs font-bold uppercase text-slate-400 flex items-center gap-1">
+                                <i data-lucide="compass" class="w-3.5 h-3.5 text-red-500"></i>
+                                Logique et caractéristiques comportementales :
+                            </h4>
+                            <ul class="space-y-2 mt-1">
+                                ${listeCaracsHtml}
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Portrait Psychologique -->
+                    <div class="bg-slate-900/60 border border-slate-800/80 p-5 rounded-2xl w-full lg:max-w-md flex flex-col justify-between">
+                        <div class="space-y-3">
+                            <div class="flex items-center gap-2 text-red-400">
+                                <div class="bg-red-500/10 p-1.5 rounded-lg border border-red-500/20">
+                                    <i data-lucide="brain" class="w-4 h-4 text-red-400"></i>
+                                </div>
+                                <span class="text-[10px] uppercase font-bold tracking-wider">État d'Esprit & Mode de Pensée</span>
+                            </div>
+                            <p class="text-xs text-slate-300 leading-relaxed italic">"${meta.pensee}"</p>
+                        </div>
+                        <div class="border-t border-slate-800/80 pt-4 mt-4 flex justify-between items-center text-[10px] text-slate-500">
+                            <span>Attente Qualité : ${selectedClusterId === 2 ? 'Critique' : 'Standard'}</span>
+                            <span>Engagement Discipline : ${selectedClusterId === 2 || selectedClusterId === 5 ? 'Très Élevé' : 'Modéré / Faible'}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            barChart.data.datasets[0].data = [c.kumite, c.kata, c.debutant, c.enfant];
+            barChart.update();
+
+            genererListeTableau(c);
+            lucide.createIcons();
+        }
+
+        function changerClusterDepuisDropdown(val) {
+            selectionnerCluster(parseInt(val));
+        }
+
+        // --- 8. REMPLISSAGE DE LA TABLE DES MEMBRES ---
+        function genererListeTableau(c) {
+            const tbody = document.getElementById('clientTableBody');
+            tbody.innerHTML = '';
+
+            let clientsA_Afficher = [];
+
+            if (currentMode === 'reel' && realParsedClients.length > 0) {
+                // Filtrer les vrais clients de ce cluster
+                clientsA_Afficher = realParsedClients.filter(cl => cl.cluster === c.id).slice(0, 15);
+            }
+
+            // S'il n'y a pas de données réelles (Simulation ou chargement vide), on génère des lignes réalistes pour illustrer
+            if (clientsA_Afficher.length === 0) {
+                for (let i = 1; i <= 8; i++) {
+                    const rec = Math.round(c.recence * (0.85 + Math.random() * 0.3));
+                    const freq = Math.max(1, Math.round(c.frequence * (0.8 + Math.random() * 0.4)));
+                    const mont = (c.montant * (0.7 + Math.random() * 0.6));
+                    
+                    clientsA_Afficher.push({
+                        identifiant: `client_simu_${c.id}${i}0${Math.round(Math.random()*9)}`,
+                        recence: rec,
+                        frequence: freq,
+                        montant: mont,
+                        discipline: c.kumite > c.kata && c.kumite > c.debutant ? "Combat (Kumite)" : (c.kata > c.debutant ? "Technique (Kata)" : "Initiation / Débutant"),
+                        age: c.enfant > 5 ? "Enfant / Junior" : "Adulte"
+                    });
+                }
+            }
+
+            clientsA_Afficher.forEach(cl => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-900/30 transition";
+                tr.innerHTML = `
+                    <td class="p-4 font-mono text-xs text-slate-400">${cl.identifiant}</td>
+                    <td class="p-4 text-right">${cl.recence} j</td>
+                    <td class="p-4 text-right">${cl.frequence}</td>
+                    <td class="p-4 text-right font-bold text-emerald-400">${cl.montant.toFixed(2)} €</td>
+                    <td class="p-4">
+                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300">
+                            ${cl.discipline}
+                        </span>
+                    </td>
+                    <td class="p-4 text-xs text-slate-400">${cl.age}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // --- 9. CHARGEMENT ET PARSING DU FICHIER LOCAL (CSV RÉEL AVEC RECONSTRUCTEUR SECURISE) ---
+        function chargerFichierLocal(event) {
+            const fichier = event.target.files[0];
+            if (!fichier) return;
+
+            document.getElementById('syncText').textContent = "Analyse et auto-détection du format du CSV...";
+            document.getElementById('syncDot').className = "w-3 h-3 rounded-full bg-blue-500 animate-pulse";
+
+            Papa.parse(fichier, {
+                header: true,
+                dynamicTyping: true,
+                skipEmptyLines: 'greedy', // ignore les lignes de fin de fichier vides ou avec espaces
+                complete: function(results) {
+                    traiterDonneesImportees(results.data);
+                },
+                error: function(err) {
+                    document.getElementById('syncText').textContent = "Erreur technique de lecture de ton fichier.";
+                    document.getElementById('syncDot').className = "w-3 h-3 rounded-full bg-red-500";
+                    console.error(err);
+                }
+            });
+        }
+
+        // --- 10. CHARGEMENT DEPUIS UN LIEN WEB GITHUB RAW ---
+        function chargerDonneesDepuisUrl() {
+            const urlInput = document.getElementById('csvUrlInput').value.trim();
+            if (!urlInput) {
+                document.getElementById('syncText').textContent = "Lien URL vide ou invalide.";
+                document.getElementById('syncDot').className = "w-3 h-3 rounded-full bg-red-500";
+                return;
+            }
+
+            document.getElementById('syncText').textContent = "Téléchargement sécurisé depuis GitHub...";
+            document.getElementById('syncDot').className = "w-3 h-3 rounded-full bg-blue-500 animate-pulse";
+
+            Papa.parse(urlInput, {
+                download: true,
+                header: true,
+                dynamicTyping: true,
+                skipEmptyLines: 'greedy',
+                complete: function(results) {
+                    traiterDonneesImportees(results.data);
+                },
+                error: function(err) {
+                    document.getElementById('syncText').textContent = "Échec de connexion. Vérifie ton lien raw GitHub.";
+                    document.getElementById('syncDot').className = "w-3 h-3 rounded-full bg-red-500";
+                    console.error(err);
+                }
+            });
+        }
+
+        // --- 11. TRAITEMENT DES DONNÉES RÉELLES ET CALCUL DES MOYENNES PAR CLUSTER ---
+        function traiterDonneesImportees(data) {
+            try {
+                if (!data || data.length === 0) {
+                    throw new Error("Le fichier CSV importé est complètement vide.");
+                }
+
+                // Initialisation des structures pour recalculer proprement les indicateurs
+                const clustersCalcules = Array.from({length: 6}, (_, i) => ({
+                    id: i,
+                    clients: 0,
+                    montant: 0,
+                    frequence: 0,
+                    recence: 0,
+                    kumite: 0,
+                    kata: 0,
+                    debutant: 0,
+                    enfant: 0,
+                    cumuls: { m: 0, f: 0, r: 0, ku: 0, ka: 0, de: 0, en: 0 }
+                }));
+
+                realParsedClients = [];
+                let totalCA = 0;
+                let totalClients = 0;
+                let totalRecence = 0;
+
+                // Fonction sécurisée pour nettoyer et extraire des floats (supporte virgules françaises)
+                const securiserFloat = (val) => {
+                    if (val === undefined || val === null) return 0;
+                    if (typeof val === 'number') return val;
+                    const cleanStr = String(val).replace('€', '').replace(/\s+/g, '').replace(',', '.');
+                    const num = parseFloat(cleanStr);
+                    return isNaN(num) ? 0 : num;
+                };
+
+                // Normalisation des en-têtes (suppression des espaces insécables ou normaux d'Excel)
+                const normaliserRow = (r) => {
+                    const cleanRow = {};
+                    Object.keys(r).forEach(k => {
+                        if (k) cleanRow[k.trim()] = r[k];
+                    });
+                    return cleanRow;
+                };
+
+                data.forEach((rowRaw, idx) => {
+                    const row = normaliserRow(rowRaw);
+
+                    // Recherche dynamique de l'affectation du groupe (Deep_Cluster ou KMeans_Cluster)
+                    const clusterIndexRaw = row.Deep_Cluster !== undefined ? row.Deep_Cluster : row.KMeans_Cluster;
+                    if (clusterIndexRaw === undefined || clusterIndexRaw === null) return;
+
+                    const clusterIndex = parseInt(clusterIndexRaw);
+                    if (isNaN(clusterIndex) || clusterIndex < 0 || clusterIndex > 5) return;
+
+                    const c = clustersCalcules[clusterIndex];
+
+                    // Extraction robuste des variables RFM
+                    const m = securiserFloat(row.Montant_Clean || row.Dépense_totale || row.Montant_Total || row.Montant || row['Dépense totale']);
+                    const f = securiserFloat(row.Frequence_Clean || row.Commandes || row.Fréquence || row.Frequence || row.Commandes);
+                    const r = securiserFloat(row.Recence_Clean || row.Recence_Jours || row.Recence || row.Recence_Jours);
+
+                    // Extraction robuste des affinités (valeur entre 0 et 100)
+                    const ku = securiserFloat(row.Part_Kumite || row.part_kumite || 0) * (row.Part_Kumite <= 1.0 ? 100 : 1);
+                    const ka = securiserFloat(row.Part_Kata || row.part_kata || 0) * (row.Part_Kata <= 1.0 ? 100 : 1);
+                    const de = securiserFloat(row.Part_Debutant || row.part_debutant || 0) * (row.Part_Debutant <= 1.0 ? 100 : 1);
+                    const en = securiserFloat(row.Part_Enfant || row.part_enfant || 0) * (row.Part_Enfant <= 1.0 ? 100 : 1);
+
+                    c.clients++;
+                    c.cumuls.m += m;
+                    c.cumuls.f += f;
+                    c.cumuls.r += r;
+                    c.cumuls.ku += ku;
+                    c.cumuls.ka += ka;
+                    c.cumuls.de += de;
+                    c.cumuls.en += en;
+
+                    totalCA += m;
+                    totalClients++;
+                    totalRecence += r;
+
+                    realParsedClients.push({
+                        identifiant: row.Identifiant || row.client_id || `client_${totalClients}`,
+                        recence: Math.round(r),
+                        frequence: Math.round(f),
+                        montant: m,
+                        cluster: clusterIndex,
+                        discipline: ku > ka && ku > de ? "Combat (Kumite)" : (ka > de ? "Technique (Kata)" : "Initiation / Débutant"),
+                        age: en > 15 ? "Enfant / Junior" : "Adulte"
+                    });
+                });
+
+                if (totalClients === 0) {
+                    throw new Error("Aucun client n'a pu être classé. Vérifie la colonne 'Deep_Cluster' ou 'KMeans_Cluster'.");
+                }
+
+                // Calcul final des moyennes pondérées par groupe
+                clustersCalcules.forEach(c => {
+                    if (c.clients > 0) {
+                        c.montant = c.cumuls.m / c.clients;
+                        c.frequence = c.cumuls.f / c.clients;
+                        c.recence = c.cumuls.r / c.clients;
+                        c.kumite = c.cumuls.ku / c.clients;
+                        c.kata = c.cumuls.ka / c.clients;
+                        c.debutant = c.cumuls.de / c.clients;
+                        c.enfant = c.cumuls.en / c.clients;
+                    }
+                });
+
+                currentClustersData = clustersCalcules;
+
+                // Remplir les Kpis globaux avec les vraies données issues du fichier
+                remplirKpisGlobaux(totalCA, totalClients, totalCA / totalClients, totalRecence / totalClients);
+
+                document.getElementById('syncText').textContent = "Synchronisé avec succès avec ton fichier CSV réel !";
+                document.getElementById('syncSubtext').textContent = "Toutes les statistiques réelles et la liste des clients ont été recalculées.";
+                document.getElementById('syncDot').className = "w-3 h-3 rounded-full bg-emerald-500 animate-pulse";
+
+                mettreAJourGraphiques();
+                selectionnerCluster(selectedClusterId);
+
+            } catch (error) {
+                // UI d'erreur intuitive (pas d'alert de navigateur)
+                document.getElementById('syncText').textContent = "Erreur : " + error.message;
+                document.getElementById('syncSubtext').textContent = "Vérifie les colonnes et que le fichier n'est pas corrompu.";
+                document.getElementById('syncDot').className = "w-3 h-3 rounded-full bg-red-500";
+                console.error(error);
+            }
+        }
+
+        function remplirKpisGlobaux(ca, clients, aov, recence) {
+            document.getElementById('kpiCA').textContent = `${ca.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} €`;
+            document.getElementById('kpiClients').textContent = clients.toLocaleString('fr-FR');
+            document.getElementById('kpiAOV').textContent = `${aov.toLocaleString('fr-FR', {maximumFractionDigits: 2})} €`;
+            document.getElementById('kpiRecence').textContent = `${Math.round(recence)} jours`;
+        }
+
+        // --- 12. EXPORTATION CSV SUR MESURE DE LA LISTE RÉELLE PAR SEGMENT ---
+        function genererCsv() {
+            const c = currentClustersData.find(item => item.id === selectedClusterId);
+            const meta = modelesMarketing[selectedClusterId];
+            let csvContent = "data:text/csv;charset=utf-8,Identifiant,Recence_Jours,Commandes_Total,Depense_Total,Cluster_Affectation\n";
+            
+            let cibles = [];
+            if (currentMode === 'reel' && realParsedClients.length > 0) {
+                // Liste réelle filtrée par segment
+                cibles = realParsedClients.filter(cl => cl.cluster === selectedClusterId);
+            } else {
+                // Données simulées d'exemple
+                for (let i = 1; i <= 20; i++) {
+                    cibles.push({
+                        identifiant: `client_simu_${c.id}${i}`,
+                        recence: Math.round(c.recence * (0.8 + Math.random() * 0.4)),
+                        frequence: Math.max(1, Math.round(c.frequence * (0.7 + Math.random() * 0.6))),
+                        montant: (c.montant * (0.6 + Math.random() * 0.8))
+                    });
+                }
+            }
+
+            cibles.forEach(cl => {
+                csvContent += `${cl.identifiant},${cl.recence},${cl.frequence},${cl.montant.toFixed(2)},Cluster_${selectedClusterId}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `KGI_liste_reelle_membres_cluster_${selectedClusterId}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // --- 13. INITIALISATION ---
+        window.onload = function() {
+            lucide.createIcons();
+            initialiserGraphiques();
+            mettreAJourGraphiques();
+            selectionnerCluster(2); // Position d'ancrage par défaut sur Dojo Premium
+        };
+    </script>
+</body>
+</html>
