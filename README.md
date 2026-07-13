@@ -94,42 +94,4 @@ Style d'achat : Pratiquant régulier focalisé sur le combat, renouvelant fréqu
 ## Visualiseur de segmentation interactif (visualiseur_interactive.html)
 
 Vous pouvez accéder à l'application web interactive permettant d'accéder au tableau de bord visuel des clusters, avec le fichier visualiseur_clusters_interactif.html :
-
-
-Fonctionnalités Clés :
-
-Onglet 1 : Modèle Conceptuel (Simulation) : Présente les visualisations de référence issues de notre modèle pour comprendre la psychologie de chaque cluster en un coup d'œil.
-
-Onglet 2 : Explorateur Réel (CSV) : Permet de glisser-déposer ou d'importer directement ton fichier réel donnees_segmentation_profonde.csv. L'application va lire ton fichier localement (sans rien envoyer sur le web pour préserver le RGPD) et recalculer dynamiquement toutes les statistiques réelles !
-
-Fiches d'identité comportementales : Analyse des habitudes d'achat et de l'état d'esprit de chaque segment.
-
-Extraction Ciblée : Possibilité d'exporter uniquement la liste des clients réels appartenant au cluster actif en un seul clic (.csv).
-
-🛠️ Comment Installer et Exécuter le Projet
-
-1. Prérequis
-
-Installe les bibliothèques requises sur ton Mac :
-
-pip install pandas numpy scikit-learn papaparse
-
-
-2. Lancement du Pipeline Profond
-
-Place tes trois fichiers de données dans le même dossier que le script :
-
-donnees_boutique_propres_interne - donnees_boutique_propres_interne.csv
-
-export-des-commandes-2018-13_07_2026 (sans .xlsx - Sans note du client.csv
-
-export_produits_KGI.csv
-
-Exécute la segmentation de niveau supérieur :
-
-python extraction_taille_categorie.py
-
-
-3. Lancer l'application interactive
-
-Ouvre simplement le fichier visualiseur_interactive.html dans ton navigateur, ou publie-le sur GitHub Pages dans l'onglet Settings de ton dépôt pour le rendre accessible à tous via un lien web public !
+![Aperçu du Tableau de Bord](images/visualisation_clusters.png)
