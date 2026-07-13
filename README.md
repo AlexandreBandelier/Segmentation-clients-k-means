@@ -94,4 +94,4 @@ Style d'achat : Pratiquant régulier focalisé sur le combat, renouvelant fréqu
 ## Visualiseur de segmentation interactif (visualiseur_interactive.html)
 
 Vous pouvez accéder à l'application web interactive permettant d'accéder au tableau de bord visuel des clusters, avec le fichier visualiseur_clusters_interactif.html :
-![Aperçu du Tableau de Bord](images/visualisation_clusters.png)
+![Aperçu du Tableau de Bord](visualisation_clusters.png)
