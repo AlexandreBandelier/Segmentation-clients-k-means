@@ -93,7 +93,8 @@ Style d'achat : Pratiquant régulier focalisé sur le combat, renouvelant fréqu
 
 ## Visualiseur de segmentation interactif (visualiseur_interactive.html)
 
-Pour rendre ces découvertes exploitables par n'importe quel recruteur ou collaborateur sans installer Python, nous avons conçu une application web interactive accessible en ligne (hébergée via GitHub Pages).
+Vous pouvez accéder à l'application web interactive permettant d'accéder au tableau de bord visuel des clusters, avec le fichier visualiseur_clusters_interactif.html :
+
 
 Fonctionnalités Clés :
 
